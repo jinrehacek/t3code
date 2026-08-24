@@ -309,6 +309,28 @@ function sanitizedHtmlFrom(container: Element): string {
   return `<meta charset="utf-8">${container.innerHTML}`;
 }
 
+function elementForNode(node: Node): Element | null {
+  return node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+}
+
+/**
+ * Returns raw code for selections contained by `pre`, including final-line
+ * triple-click ranges whose trailing boundary leaves the block without
+ * selecting any following text.
+ */
+export function plainTextForCodeSelection(range: Range): string | null {
+  if (elementForNode(range.commonAncestorContainer)?.closest("pre")) {
+    return range.toString();
+  }
+
+  const startPre = elementForNode(range.startContainer)?.closest("pre");
+  if (!startPre) return null;
+
+  const trailingRange = range.cloneRange();
+  trailingRange.setStartAfter(startPre);
+  return trailingRange.toString().trim() ? null : range.toString();
+}
+
 export function chatMarkdownClipboardPayload(
   selection: Selection,
 ): MarkdownClipboardPayload | null {
@@ -319,11 +341,9 @@ export function chatMarkdownClipboardPayload(
     if (range.collapsed) continue;
     const container = document.createElement("div");
     container.appendChild(range.cloneContents());
-    const ancestor = range.commonAncestorContainer;
-    const ancestorElement =
-      ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
-    if (ancestorElement?.closest("pre")) {
-      const text = range.toString();
+    const plainCodeText = plainTextForCodeSelection(range);
+    if (plainCodeText !== null) {
+      const text = plainCodeText;
       if (text) {
         texts.push(text);
         htmls.push(sanitizedHtmlFrom(container));

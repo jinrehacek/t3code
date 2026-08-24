@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { serializeRenderedMarkdownFragment } from "./markdown-clipboard";
+import { plainTextForCodeSelection, serializeRenderedMarkdownFragment } from "./markdown-clipboard";
 
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
@@ -91,5 +91,62 @@ describe("serializeRenderedMarkdownFragment", () => {
     const container = new FakeElement("DIV").append(code);
 
     expect(serializeRenderedMarkdownFragment(asNode(container))).toBe("first line\nsecond line");
+  });
+});
+
+function rangeNode(closestPre: Element | null): Node {
+  return {
+    nodeType: ELEMENT_NODE,
+    closest: () => closestPre,
+  } as unknown as Node;
+}
+
+function codeSelectionRange({
+  commonAncestorPre,
+  trailingText,
+}: {
+  commonAncestorPre: Element | null;
+  trailingText: string;
+}): Range {
+  return {
+    commonAncestorContainer: rangeNode(commonAncestorPre),
+    startContainer: rangeNode({} as Element),
+    cloneRange: () =>
+      ({
+        setStartAfter: vi.fn(),
+        toString: () => trailingText,
+      }) as unknown as Range,
+    toString: () => "sudo dnf remove alacritty",
+  } as unknown as Range;
+}
+
+describe("plainTextForCodeSelection", () => {
+  beforeEach(() => {
+    vi.stubGlobal("Node", { TEXT_NODE, ELEMENT_NODE });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a selection contained by pre plain", () => {
+    const range = codeSelectionRange({ commonAncestorPre: {} as Element, trailingText: "unused" });
+
+    expect(plainTextForCodeSelection(range)).toBe("sudo dnf remove alacritty");
+  });
+
+  it("keeps a final-line selection plain when only its trailing boundary leaves pre", () => {
+    const range = codeSelectionRange({ commonAncestorPre: null, trailingText: "\n" });
+
+    expect(plainTextForCodeSelection(range)).toBe("sudo dnf remove alacritty");
+  });
+
+  it("preserves markdown serialization when a code selection continues into prose", () => {
+    const range = codeSelectionRange({
+      commonAncestorPre: null,
+      trailingText: "The following paragraph",
+    });
+
+    expect(plainTextForCodeSelection(range)).toBeNull();
   });
 });
