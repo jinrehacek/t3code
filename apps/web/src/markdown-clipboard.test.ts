@@ -104,17 +104,21 @@ function rangeNode(closestPre: Element | null): Node {
 function codeSelectionRange({
   commonAncestorPre,
   trailingText,
+  trailingElement,
 }: {
   commonAncestorPre: Element | null;
   trailingText: string;
+  trailingElement?: FakeElement;
 }): Range {
+  const trailingContent =
+    trailingElement ?? new FakeElement("DIV").append(new FakeText(trailingText));
   return {
     commonAncestorContainer: rangeNode(commonAncestorPre),
     startContainer: rangeNode({} as Element),
     cloneRange: () =>
       ({
         setStartAfter: vi.fn(),
-        toString: () => trailingText,
+        cloneContents: () => asNode(trailingContent),
       }) as unknown as Range,
     toString: () => "sudo dnf remove alacritty",
   } as unknown as Range;
@@ -145,6 +149,16 @@ describe("plainTextForCodeSelection", () => {
     const range = codeSelectionRange({
       commonAncestorPre: null,
       trailingText: "The following paragraph",
+    });
+
+    expect(plainTextForCodeSelection(range)).toBeNull();
+  });
+
+  it("preserves markdown serialization for selected trailing nodes without text", () => {
+    const range = codeSelectionRange({
+      commonAncestorPre: null,
+      trailingText: "",
+      trailingElement: new FakeElement("DIV").append(new FakeElement("HR")),
     });
 
     expect(plainTextForCodeSelection(range)).toBeNull();

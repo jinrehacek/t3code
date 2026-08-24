@@ -328,7 +328,7 @@ export function plainTextForCodeSelection(range: Range): string | null {
 
   const trailingRange = range.cloneRange();
   trailingRange.setStartAfter(startPre);
-  return trailingRange.toString().trim() ? null : range.toString();
+  return serializeRenderedMarkdownFragment(trailingRange.cloneContents()) ? null : range.toString();
 }
 
 export function chatMarkdownClipboardPayload(
